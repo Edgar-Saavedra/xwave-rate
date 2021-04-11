@@ -186,6 +186,7 @@ def responseCallback(res):
         inquirer.List('genre',
           message="Genre???",
           choices=[
+            "Darkwave",
             "Punk",
             "Post-Punk",
             "Synth",
