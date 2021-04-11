@@ -139,10 +139,11 @@ def searchYoutube(value=[]):
     if(len(response['items'])):
       pp = pprint.PrettyPrinter(indent=4)
       for video in response['items']:
-        print("\n\n\n")
-        pp.pprint(video)
-        youtubeLinks.append(f"https://youtube.com/watch?v={video['id']['videoId']}")
-        print("\n\n\n")
+        if 'videoId' in video['id']:
+          print("\n\n\n")
+          pp.pprint(video)
+          youtubeLinks.append(f"https://youtube.com/watch?v={video['id']['videoId']}")
+          print("\n\n\n")
   except HttpError as err:
     print("\n\n\n")
     print(" Error with youtube! ")
