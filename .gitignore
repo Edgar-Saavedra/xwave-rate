@@ -2,10 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+private.data.json
+credentials.json
 # C extensions
 *.so
-
+token.json
 # Distribution / packaging
 .Python
 build/
