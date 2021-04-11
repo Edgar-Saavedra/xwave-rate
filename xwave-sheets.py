@@ -9,10 +9,16 @@ from google.oauth2.credentials import Credentials
 from lxml import html
 import inquirer
 import json
+import discogs_client
+from googleapiclient.errors import HttpError
+import pprint
 
 # https://developers.google.com/sheets/api/reference/rest?apix=true
 # If modifying these scopes, delete the file token.json.
-SCOPES_READ = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+SCOPES_MULTIPLE = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/youtube.force-ssl'
+]
 SCOPES_WRITE = ['https://www.googleapis.com/auth/spreadsheets']
 
 # The ID and range of a sample spreadsheet.
@@ -34,18 +40,12 @@ def readSheetRow(row):
   # Print columns A and E, which correspond to indices 0 and 4.
   # print('%s, %s' % (row[0], row[4]))
 
-def callGoogleAPI(scopes):
-  """Shows basic usage of the Sheets API.
-    Prints values from a sample spreadsheet.
-    """
+def getCredentials(scopes = [], existingTokensFile = 'token.json', refresh = False):
   creds = None
-  # The file token.json stores the user's access and refresh tokens, and is
-  # created automatically when the authorization flow completes for the first
-  # time.
-  if os.path.exists('token.json'):
-      creds = Credentials.from_authorized_user_file('token.json', scopes)
+  if os.path.exists(existingTokensFile):
+      creds = Credentials.from_authorized_user_file(existingTokensFile, scopes)
   # If there are no (valid) credentials available, let the user log in.
-  if not creds or not creds.valid:
+  if not creds or not creds.valid or refresh:
     if creds and creds.expired and creds.refresh_token:
       creds.refresh(Request())
     else:
@@ -53,19 +53,27 @@ def callGoogleAPI(scopes):
           'credentials.json', scopes)
       creds = flow.run_local_server()
     # Save the credentials for the next run
-    with open('token.json', 'w') as token:
+    with open(existingTokensFile, 'w') as token:
       token.write(creds.to_json())
+
+  return creds
+
+def callGoogleAPI(scopes=[], api='sheets', version='v4', refresh=False):
+  creds = getCredentials(scopes=scopes, refresh=refresh)
+  # The file token.json stores the user's access and refresh tokens, and is
+  # created automatically when the authorization flow completes for the first
+  # time.
   # https://googleapis.github.io/google-api-python-client/docs/epy/googleapiclient.discovery.Resource-class.html
 
   # Call the Sheets API
-  return discovery.build('sheets', 'v4', credentials=creds)
+  return discovery.build(api, version, credentials=creds)
 
 def readSheets(sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
-  service = callGoogleAPI(SCOPES_READ)
+  service = callGoogleAPI(scopes=SCOPES_MULTIPLE)
   sheet = service.spreadsheets()
   result = sheet.values().get(spreadsheetId=sheetID,
                               range=sheetRange).execute()
-  values = result.get('values', [])
+  values = result.get('values', )
   if not values:
       print('No data found.')
   else:
@@ -78,10 +86,11 @@ def onSuccess(saveValues=[], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_
   # readSheets()
 
 def writeSheets(value = [], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
-  service = callGoogleAPI(SCOPES_WRITE)
+  service = callGoogleAPI(scopes=SCOPES_MULTIPLE)
   sheet = service.spreadsheets()
   result = sheet.values().get(spreadsheetId=sheetID,
                               range=sheetRange).execute()
+  value.append(' , '.join([str(elem) for elem in searchYoutube(value)]))
   result['values'].append(value)
   # # The A1 notation of a range to search for a logical table of data.
   # # Values will be appended after the last row of the table.
@@ -96,7 +105,36 @@ def writeSheets(value = [], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_R
   request = service.spreadsheets().values().update(spreadsheetId=sheetID, range=range_, valueInputOption=value_input_option, body=result)
   response = request.execute()
 
+
   print(response)
+
+
+def searchYoutube(value=[]):
+  youtubeLinks = []
+  creds = getCredentials(scopes=SCOPES_MULTIPLE);
+  youtube = discovery.build(
+        'youtube', 'v3', credentials=creds)
+  try :
+    request = youtube.search().list(
+      part='snippet',
+      q=f"{value[0]} song"
+    )
+    response = request.execute()
+    if(len(response['items'])):
+      pp = pprint.PrettyPrinter(indent=4)
+      for video in response['items']:
+        print("\n\n\n")
+        pp.pprint(video)
+        youtubeLinks.append(f"https://youtube.com/watch?v={video['id']['videoId']}")
+        print("\n\n\n")
+  except HttpError as err:
+    print("\n\n\n")
+    print(" Error with youtube! ")
+    print(err._get_reason())
+    print("\n\n\n")
+
+  return youtubeLinks
+
 
 def responseCallback(res):
   if res.status_code == 200:
@@ -118,7 +156,7 @@ def responseCallback(res):
         ),
         inquirer.List('language',
           message="What's The Language???",
-          choices=["English", "Español", "Deustch", "Française", "Greek", "Russian", "Other"],
+          choices=["English", "Español", "Deustch", "Français", "Greek", "Russian", "Instrumental", "Other"],
         ),
         inquirer.List('dance',
           message="Is This Dancable???",
@@ -133,7 +171,10 @@ def responseCallback(res):
           choices=[
             "Punk",
             "Post-Punk",
+            "Synth",
+            "Synth-Punk",
             "Goth",
+            "Electronic",
             "Deathrock",
             "Minimal",
             "Rockabilly",
@@ -151,6 +192,32 @@ def responseCallback(res):
       feelz = input("This song makes me feel >> ")
 
       if (len(song) > 0):
+        params = {
+          "q": song,
+          "key": data['discogKey'],
+          "secret": data['discogSecrete']
+        }
+
+        rs = (grequests.get(u, params=params) for u in ['https://api.discogs.com/database/search'])
+
+        labels = ""
+        year = ""
+        discogs_url = ""
+        country = ""
+        album = ""
+
+        for response in grequests.map(rs):
+          results = response.json()['results']
+          if (len(results) > 0):
+            index = 0
+            print(results[index])
+            labels = ', '.join([str(elem) for elem in results[index]['label']])
+            if 'year' in results[index]:
+              year = results[index]['year']
+            country = results[index]['country']
+            discogs_url = f"https://www.discogs.com/{results[index]['uri']}"
+
+
         onSuccess(saveValues=[
           song,
           inquire['rating'],
@@ -159,6 +226,10 @@ def responseCallback(res):
           inquire['dance'],
           inquire['non-dude'],
           inquire['genre'],
+          labels,
+          year,
+          country,
+          discogs_url,
         ],
         sheetID=data['spreadSheedId'])
 
