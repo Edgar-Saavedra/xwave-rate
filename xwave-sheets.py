@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from __future__ import print_function
 import grequests
 import os.path
@@ -72,8 +73,8 @@ def readSheets(sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
       for row in values:
         readSheetRow(row)
 
-def onSuccess(res=[], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
-  writeSheets(value=res, sheetID=sheetID, sheetRange = sheetRange)
+def onSuccess(saveValues=[], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
+  writeSheets(value=saveValues, sheetID=sheetID, sheetRange = sheetRange)
   # readSheets()
 
 def writeSheets(value = [], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_RANGE_NAME):
@@ -112,19 +113,52 @@ def responseCallback(res):
 
       questions = [
         inquirer.List('rating',
-          message="This song is a ....",
-          choices=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          message="This song is a >>",
+          choices= range(10, 0, -1),
+        ),
+        inquirer.List('language',
+          message="What's The Language???",
+          choices=["English", "Español", "Deustch", "Française", "Greek", "Russian", "Other"],
+        ),
+        inquirer.List('dance',
+          message="Is This Dancable???",
+          choices=[0, 1],
+        ),
+        inquirer.List('non-dude',
+          message="Non Dude Voice???",
+          choices=[0, 1],
+        ),
+        inquirer.List('genre',
+          message="Genre???",
+          choices=[
+            "Punk",
+            "Post-Punk",
+            "Goth",
+            "Deathrock",
+            "Minimal",
+            "Rockabilly",
+            "Shoegaze",
+            "Metal",
+            "Pop",
+            "Pyschobilly",
+            "Alternative",
+            "Other"
+          ],
         ),
       ]
 
-      rating = inquirer.prompt(questions)
-      feelz = input("This song makes me feel ... ")
+      inquire = inquirer.prompt(questions)
+      feelz = input("This song makes me feel >> ")
 
       if (len(song) > 0):
-        onSuccess(res=[
+        onSuccess(saveValues=[
           song,
-          rating['rating'],
-          feelz
+          inquire['rating'],
+          feelz,
+          inquire['language'],
+          inquire['dance'],
+          inquire['non-dude'],
+          inquire['genre'],
         ],
         sheetID=data['spreadSheedId'])
 
