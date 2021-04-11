@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# https://www.discogs.com/developers#page:database,header:database-search
+# https://github.com/joalla/discogs_client/blob/master/discogs_client/client.py
+# https://docs.python-guide.org/scenarios/scrape/
+# https://developers.google.com/sheets/api/quickstart/python
 from __future__ import print_function
 import grequests
 import os.path
@@ -90,26 +94,38 @@ def writeSheets(value = [], sheetID=SAMPLE_SPREADSHEET_ID, sheetRange = SAMPLE_R
   sheet = service.spreadsheets()
   result = sheet.values().get(spreadsheetId=sheetID,
                               range=sheetRange).execute()
-  value.append(' , '.join([str(elem) for elem in searchYoutube(value)]))
-  result['values'].append(value)
-  # # The A1 notation of a range to search for a logical table of data.
-  # # Values will be appended after the last row of the table.
-  range_ = result['range']  # TODO: Update placeholder value.
+  songExist = False
+  for row in result['values']:
+    if row[0] == value[0]:
+      songExist = True
 
-  # # How the input data should be interpreted.
-  value_input_option = 'USER_ENTERED'  # TODO: Update placeholder value. ['INPUT_VALUE_OPTION_UNSPECIFIED', 'RAW', 'USER_ENTERED']
+  if not songExist:
+    value.append(' , '.join([str(elem) for elem in searchYoutube(value)]))
+    result['values'].append(value)
+    # # The A1 notation of a range to search for a logical table of data.
+    # # Values will be appended after the last row of the table.
+    range_ = result['range']  # TODO: Update placeholder value.
 
-  # # How the input data should be inserted.
-  insert_data_option = 'INSERT_ROWS'  # TODO: Update placeholder value. ['OVERWRITE', 'INSERT_ROWS']
+    # # How the input data should be interpreted.
+    value_input_option = 'USER_ENTERED'  # TODO: Update placeholder value. ['INPUT_VALUE_OPTION_UNSPECIFIED', 'RAW', 'USER_ENTERED']
 
-  request = service.spreadsheets().values().update(spreadsheetId=sheetID, range=range_, valueInputOption=value_input_option, body=result)
-  response = request.execute()
+    # # How the input data should be inserted.
+    insert_data_option = 'INSERT_ROWS'  # TODO: Update placeholder value. ['OVERWRITE', 'INSERT_ROWS']
+
+    request = service.spreadsheets().values().update(spreadsheetId=sheetID, range=range_, valueInputOption=value_input_option, body=result)
+    response = request.execute()
 
 
-  print(response)
+    print(response)
+  else:
+      print('======================================')
+      print("Song Found!")
+      print(f"{value[0]}")
+      print('======================================')
 
 
 def searchYoutube(value=[]):
+  # https://developers.google.com/youtube/v3/docs/search/list?hl=en&apix_params=%7B%22part%22%3A%5B%22testing%22%2C%22part%202%20asf%22%5D%7D
   youtubeLinks = []
   creds = getCredentials(scopes=SCOPES_MULTIPLE);
   youtube = discovery.build(
@@ -198,6 +214,7 @@ def responseCallback(res):
           "secret": data['discogSecrete']
         }
 
+        # https://www.discogs.com/developers
         rs = (grequests.get(u, params=params) for u in ['https://api.discogs.com/database/search'])
 
         labels = ""
